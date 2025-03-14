@@ -1,0 +1,50 @@
+#Use this link to download the images file. There are 800 images reuslting in file size of apprx. 54MB:
+#https://drive.google.com/drive/folders/1koWaGx2uZUiDMSJ-LfZLfqjd4WM50Su3?usp=sharing
+library(jpeg)
+data <- read.csv("C:\\Users\\Ammar\\Documents\\MATH 3333\\photoMetaData.csv")
+#Make sure to add your own path file in line 4. The meta data is available as a CSV file in the repository
+n <- nrow(data)
+train_flag <- (runif(n) > 0.5)
+y <- as.numeric(data$category == "outdoor-day")
+X <- matrix(NA, ncol=3, nrow=n)
+#In line 12 we use the images file, so make sure to use your own file path
+for (j in 1:n) {
+  img <- readJPEG(paste0("C:\\Users\\Ammar\\Documents\\MATH 3333\\columbiaImages\\",data$name[j]))
+  X[j,] <- apply(img,3,median)
+  print(sprintf("%03d / %03d", j, n))
+}
+# glm model on the median values above:
+result <- glm(y ~ X, family=binomial, subset=train_flag)
+result$iter
+summary(result)
+pred <- 1 / (1 + exp(-1 * cbind(1,X) %*% coef(result)))
+y[order(pred)]
+y[!train_flag][order(pred[!train_flag])]
+mean((as.numeric(pred > 0.5) == y)[train_flag])
+mean((as.numeric(pred > 0.5) == y)[!train_flag])
+# ROC curve 
+roc_curve <- function(y, pred) 
+  {
+  a <- quantile(pred, seq(0,1,by=0.01))
+  N <- length(a)
+  sens <- rep(NA,N)
+  spec <- rep(NA,N)
+  for (i in 1:N) {
+    predClass <- as.numeric(pred >= a[i])
+    sens[i] <- sum(predClass == 1 & y == 1) / sum(y == 1)
+    spec[i] <- sum(predClass == 0 & y == 0) / sum(y == 0)
+  }
+  return(list(fpr=1- spec, tpr=sens))
+}
+r <- roc_curve(y[!train_flag], pred[!train_flag])
+plot(r$fpr, r$tpr, xlab="false positive rate", ylab="true positive rate", type="l")
+abline(0,1,lty="dashed")
+
+auc1 <- function(r) {
+  sum((r$fpr) * diff(c(0,r$tpr)))
+}
+glm_AUC <- auc1(r)
+glm_AUC
+
+mean(sens)
+mean(spec)
